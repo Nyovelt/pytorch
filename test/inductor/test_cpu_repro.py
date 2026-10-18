@@ -4862,6 +4862,20 @@ class CPUReproTests(TestCase):
                         self.common(fn, (x,))
                         check_metrics_vec_kernel_count(2)
 
+    @requires_vectorization
+    def test_transpose_bool_store_from_uint8_compare(self):
+        # The int64 reduction sets the 2D tiling factor, while the bool result is a
+        # VecMask<uint8_t, 1> with more lanes than a tile row. Storing it into the
+        # transposed tile buffer without a count wrote past the row (and past the
+        # buffer for the last rows), giving wrong values or a stack-protector abort.
+        def fn(x):
+            return x >= x.t(), x.to(torch.int64).sum(1)
+
+        for n in (8, 10, 17):
+            torch._dynamo.reset()
+            x = torch.randint(0, 9, (n, n), dtype=torch.uint8)
+            self.common(fn, (x,))
+
     @torch._dynamo.config.patch(specialize_int=False)
     def test_slice_scatter_issue122291(self):
         @torch.compile(fullgraph=True)

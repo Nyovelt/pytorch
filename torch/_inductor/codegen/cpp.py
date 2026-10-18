@@ -4014,12 +4014,9 @@ class CppTile2DKernel(CppVecKernel):
             )
             # vector store inside the kernel inner loop
             storebuf = f"{tile_var} + {cexpr_index(inner * self.num_elems)}"
-            if self.tail_size or V.graph.get_dtype(name) in DTYPE_LOWP_FP + [
-                torch.uint8,
-                torch.int8,
-                torch.float8_e4m3fn,
-                torch.float8_e5m2,
-            ]:
+            # Vectors of dtypes narrower than 4 bytes (bool masks included) can hold
+            # more lanes than a tile row, so the store needs an explicit count.
+            if self.tail_size or V.graph.get_dtype(name).itemsize < 4:
                 line = f"{value}.store({storebuf}, {cexpr_index(self.num_elems)});"
             else:
                 line = f"{value}.store({storebuf});"
